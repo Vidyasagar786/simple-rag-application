@@ -1,0 +1,33 @@
+RAG Chat Application - Sample Q&A Document
+
+This document contains sample questions and answers that you can use to test the RAG chat application.
+
+## General Questions
+
+Q: What is RAG?
+A: RAG stands for Retrieval-Augmented Generation. It's a technique that combines information retrieval with text generation to provide more accurate and contextually relevant responses.
+
+Q: How does this chat application work?
+A: This application uses LangChain to process documents, stores them in a Neo4j vector database, and retrieves relevant information when you ask questions. It then uses Azure OpenAI or AWS Bedrock to generate responses based on the retrieved context.
+
+## Technical Details
+
+Q: What file formats are supported?
+A: The application supports PDF, TXT, DOCX, and DOC files. Documents are processed and split into chunks for better retrieval.
+
+Q: Which LLM providers are integrated?
+A: The application primarily uses Azure OpenAI GPT-4.1, with AWS Bedrock Claude 3.5 Sonnet as a fallback option.
+
+Q: How are documents stored?
+A: Documents are processed using LangChain text splitters, embedded using OpenAI embeddings, and stored in a Neo4j vector database for efficient similarity search.
+
+## Features
+
+Q: Can I upload multiple documents?
+A: Yes, you can upload multiple documents of different types. The system will process each document separately and make all content available for retrieval.
+
+Q: How does the chat history work?
+A: The application maintains conversation context using a sliding window memory, keeping the last 5 exchanges in memory for context-aware responses.
+
+Q: What is document reranking?
+A: The application uses Cohere's reranking service to improve the relevance of retrieved documents, ensuring the most relevant sources are used for generating responses.
