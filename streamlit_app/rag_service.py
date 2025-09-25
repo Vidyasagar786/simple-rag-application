@@ -39,7 +39,7 @@ class RAGService:
     def initialize_llm(self):
         """Initialize the language model"""
         try:
-            # Try Azure OpenAI first
+            #  Azure OpenAI first
             self.llm = AzureChatOpenAI(
                 azure_deployment=Config.AZURE_OPENAI_DEPLOYMENT,
                 azure_endpoint=Config.AZURE_OPENAI_ENDPOINT,
@@ -53,7 +53,7 @@ class RAGService:
             
         except Exception as azure_error:
             try:
-                # Try AWS Bedrock as fallback
+                #  AWS Bedrock as fallback
                 self.llm = ChatBedrock(
                     model_id=Config.BEDROCK_MODEL,
                     region_name=Config.AWS_REGION,
@@ -72,7 +72,7 @@ class RAGService:
     def initialize_embeddings(self):
         """Initialize embeddings model"""
         try:
-            # Use HuggingFace embeddings
+            #  HuggingFace embeddings
             from langchain_community.embeddings import HuggingFaceEmbeddings
             self.embeddings = HuggingFaceEmbeddings(
                 model_name='all-MiniLM-L6-v2',
@@ -86,7 +86,7 @@ class RAGService:
     def initialize_vector_store(self):
         """Initialize vector store (try Neo4j first, fallback to FAISS)"""
         try:
-            # Try Neo4j first if password is provided
+            #  Neo4j first if password is provided
             if Config.NEO4J_PASSWORD:
                 try:
                     # Try to connect to existing vector store
@@ -100,7 +100,7 @@ class RAGService:
                     return True, "Connected to existing Neo4j vector store"
                 except Exception as e:
                     try:
-                        # Create new vector store if it doesn't exist
+                        # Creating new vector store if it doesn't exist
                         self.vector_store = Neo4jVector.from_documents(
                             documents=[],
                             embedding=self.embeddings,
@@ -120,13 +120,13 @@ class RAGService:
             import tempfile
             import os
             
-            # Create HuggingFace embeddings wrapper
+            #  HuggingFace embeddings wrapper
             hf_embeddings = HuggingFaceEmbeddings(
                 model_name='all-MiniLM-L6-v2',
                 model_kwargs={'device': 'cpu'}
             )
             
-            # Create a temporary FAISS index
+            #  a temporary FAISS index
             self.vector_store = FAISS.from_texts(
                 texts=["Sample document for initialization"],
                 embedding=hf_embeddings
@@ -177,7 +177,7 @@ class RAGService:
                     metadatas = [chunk.metadata for chunk in chunks]
                     self.vector_store.add_texts(texts, metadatas)
             
-            # Clean up temp file
+            # Cleaning up temp file
             os.unlink(tmp_file_path)
             
             return {
@@ -265,7 +265,7 @@ class RAGService:
                 print(f"Chain creation error: {chain_error}")
                 raise chain_error
             
-            # Extract sources
+            # Extracting sources
             sources = []
             if result.get("source_documents"):
                 for doc in result["source_documents"]:

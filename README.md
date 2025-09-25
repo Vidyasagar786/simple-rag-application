@@ -14,7 +14,6 @@ A simple and powerful RAG (Retrieval-Augmented Generation) chat application buil
 ## 📁 Project Structure
 
 ```
-sundar_project/
 ├── streamlit_app/          # Main Streamlit application
 │   ├── app.py             # Streamlit UI
 │   ├── rag_service.py     # RAG logic
@@ -28,11 +27,10 @@ sundar_project/
 
 ## 🎯 Use Cases
 
-1. **Customer Support Assistant** - Answer questions using company knowledge base
-2. **Document Q&A System** - Upload documents and ask questions
-3. **Research Assistant** - Analyze research papers and documents
-4. **Technical Documentation Helper** - Help with code/docs
-5. **Legal Document Analyzer** - Analyze contracts and legal documents
+1. **Document Q&A System** - Upload documents and ask questions
+2. **Research Assistant** - Analyze research papers and documents
+3. **Technical Documentation Helper** - Help with code/docs
+4. **Legal Document Analyzer** - Analyze contracts and legal documents
 
 ## ⚡ Quick Start
 
