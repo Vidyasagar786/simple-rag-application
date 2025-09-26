@@ -1,5 +1,7 @@
+
 from langchain_openai import AzureChatOpenAI
 from langchain_aws import ChatBedrock
+from langchain_community.utilities import GoogleFinanceAPIWrapper
 try:
     from langchain_community.vectorstores import Neo4jVector
     from langchain_community.embeddings import OpenAIEmbeddings
@@ -23,23 +25,39 @@ from typing import List, Dict, Any
 from datetime import datetime
 import streamlit as st
 
+# --------------- TOOL FUNCTION DEFINITION ---------------
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+
+@tool
+def get_finance_data(ticker: str) -> str:
+    """Get finance data for a ticker symbol (e.g. 'AAPL')."""
+    try:
+        print("tool is called")
+        finance = GoogleFinanceAPIWrapper(serp_api_key=Config.SERP_API_KEY)
+        print(f"Finance data for {ticker}: {finance.run(ticker)}")
+        return finance.run(ticker)
+    except Exception as e:
+        return f"Finance tool error: {str(e)}"
+# --------------------------------------------------------
+
 class RAGService:
     """Streamlit RAG service for document processing and chat"""
-    
     def __init__(self):
         self.llm = None
         self.vector_store = None
         self.embeddings = None
+        self.tools = [get_finance_data]  # <-- just add more @tool functions to this list!
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=Config.CHUNK_SIZE,
             chunk_overlap=Config.CHUNK_OVERLAP,
             length_function=len,
         )
-        
+        self.agent = None  # Will be created after LLM init
+
     def initialize_llm(self):
-        """Initialize the language model"""
+        """Initialize the language model and agentic tool interface"""
         try:
-            #  Azure OpenAI first
             self.llm = AzureChatOpenAI(
                 azure_deployment=Config.AZURE_OPENAI_DEPLOYMENT,
                 azure_endpoint=Config.AZURE_OPENAI_ENDPOINT,
@@ -49,11 +67,11 @@ class RAGService:
                 top_p=Config.AZURE_OPENAI_TOP_P,
                 model_name=Config.AZURE_OPENAI_MODEL
             )
-            return True, "Azure OpenAI initialized successfully"
-            
+            self.llm_with_tools = self.llm.bind_tools(self.tools)
+            self.agent = create_react_agent(self.llm_with_tools, tools=self.tools)
+            return True, "Azure OpenAI & tools/agent initialized"
         except Exception as azure_error:
             try:
-                #  AWS Bedrock as fallback
                 self.llm = ChatBedrock(
                     model_id=Config.BEDROCK_MODEL,
                     region_name=Config.AWS_REGION,
@@ -65,10 +83,12 @@ class RAGService:
                         "top_p": Config.BEDROCK_TOP_P
                     }
                 )
-                return True, "AWS Bedrock initialized successfully"
+                self.llm_with_tools = self.llm.bind_tools(self.tools)
+                self.agent = create_react_agent(self.llm_with_tools, tools=self.tools)
+                return True, "AWS Bedrock & tools/agent initialized"
             except Exception as bedrock_error:
                 return False, f"Both LLM providers failed. Azure: {azure_error}, Bedrock: {bedrock_error}"
-    
+
     def initialize_embeddings(self):
         """Initialize embeddings model"""
         try:
@@ -220,70 +240,47 @@ class RAGService:
             return []
     
     def get_chat_response(self, question: str, chat_history: List[Dict]) -> Dict[str, Any]:
-        """Get RAG-enhanced chat response"""
+        """Get agent (tool-augmented) LLM chat response"""
         try:
-            if not self.llm or not self.vector_store:
-                # Simple LLM response without RAG
+            if not self.agent:
+                # fallback to base LLM as before
                 response = self.llm.invoke(question) if self.llm else "LLM not initialized"
                 return {
                     "answer": response.content if hasattr(response, 'content') else str(response),
                     "sources": [],
                     "success": True
                 }
-            
-            # Create retrieval chain without memory to avoid the output_key issue
-            try:
-                from langchain.chains import RetrievalQA
-                
-                # Create a simple RetrievalQA chain instead
-                retrieval_chain = RetrievalQA.from_chain_type(
-                    llm=self.llm,
-                    chain_type="stuff",
-                    retriever=self.vector_store.as_retriever(
-                        search_kwargs={"k": Config.TOP_K_RESULTS}
-                    ),
-                    return_source_documents=True,
-                    verbose=False
-                )
-                
-                # Build context from chat history
-                context = ""
-                if chat_history:
-                    context = "Previous conversation:\n"
-                    for msg in chat_history[-5:]:  # Last 5 messages
-                        if msg["role"] == "user":
-                            context += f"Human: {msg['content']}\n"
-                        elif msg["role"] == "assistant":
-                            context += f"Assistant: {msg['content']}\n"
-                    context += "\nCurrent question: "
-                
-                # Process the question with context
-                full_question = context + question
-                result = retrieval_chain.invoke({"query": full_question})
-                
-            except Exception as chain_error:
-                print(f"Chain creation error: {chain_error}")
-                raise chain_error
-            
-            # Extracting sources
-            sources = []
-            if result.get("source_documents"):
-                for doc in result["source_documents"]:
-                    sources.append({
-                        "content": doc.page_content[:200] + "...",
-                        "filename": doc.metadata.get("filename", "Unknown"),
-                        "metadata": doc.metadata
-                    })
-            
+            # Compose chat prompt so agent gets latest context (if using chat_history)
+            messages = []
+            if chat_history:
+                for msg in chat_history:
+                    if msg["role"] == "user":
+                        messages.append(("user", msg["content"]))
+                    elif msg["role"] == "assistant":
+                        messages.append(("assistant", msg["content"]))
+            messages.append(("user", question))
+            result = self.agent.invoke({"messages": messages})
+
+            if isinstance(result, dict):
+                if "output" in result:
+                    answer = result["output"]
+                elif "messages" in result and isinstance(result["messages"], list):
+                    ai_messages = [msg for msg in result["messages"] if hasattr(msg, "content")]
+                    answer = ai_messages[-1].content if ai_messages else str(result)
+                else:
+                    answer = str(result)
+            else:
+                answer = str(result)
+
             return {
-                "answer": result.get("result", result.get("answer", "No answer generated")),
-                "sources": sources,
+                "answer": answer,
+                "sources": [],
                 "success": True
             }
-            
         except Exception as e:
+            st.error(f"Error getting chat response: {e}")
             return {
-                "answer": f"I apologize, but I encountered an error: {str(e)}",
+                "answer": str(e),
                 "sources": [],
                 "success": False
             }

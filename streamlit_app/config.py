@@ -39,3 +39,4 @@ class Config:
     CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
     TOP_K_RESULTS = int(os.getenv("TOP_K_RESULTS", "5"))
     SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.7"))
+    SERP_API_KEY = os.getenv("SERP_API_KEY", "")
